@@ -65,3 +65,76 @@ for items in jsontxt["forecast"]["forecastday"]:
     MyFILE.write(WriteThis)
 
     MyFILE.close()
+
+
+#data visualization
+
+# importing the required libraries
+
+import csv
+import matplotlib.pyplot as plt
+
+#max temp
+x = []
+y = []
+
+with open('brasiliaweather.csv', 'r') as csvfile:
+    lines = csv.reader(csvfile, delimiter=',')
+    next(lines)  
+    for row in lines:
+        x.append(row[0])
+        y.append(float(row[1]))  
+
+plt.plot(x, y, color='g', linestyle='none', marker='o', label="Forecasted Maximum Temperature")  
+
+plt.xticks(rotation=25)
+plt.xlabel('Dates') 
+plt.ylabel('Maximum Temperature(°F)')  
+plt.grid()
+plt.legend()
+plt.show()
+
+
+
+#average temp
+x = []
+y = []
+
+with open('brasiliaweather.csv', 'r') as csvfile:
+    lines = csv.reader(csvfile, delimiter=',')
+    next(lines)  
+    for row in lines:
+        x.append(row[0])
+        y.append(float(row[2]))  
+
+plt.plot(x, y, color='g', linestyle='none', marker='o', label="Forecasted Average Temperature")  
+
+plt.xticks(rotation=25)
+plt.xlabel('Dates') 
+plt.ylabel('Average Temperature(°F)')  
+plt.grid()
+plt.legend()
+plt.show()
+
+
+#total precipitation
+x = []
+y = []
+
+with open('brasiliaweather.csv', 'r') as csvfile:
+    lines = csv.reader(csvfile, delimiter=',')
+    next(lines)  
+    for row in lines:
+        x.append(row[0])
+        y.append(float(row[3]))  
+
+plt.plot(x, y, color='g', linestyle='none', marker='o', label="Forecasted Total Precipitation")  
+
+plt.xticks(rotation=25)
+plt.xlabel('Dates') 
+plt.ylabel('Forecasted Precipitation(inches)')  
+plt.grid()
+plt.legend()
+plt.show()
+
+
