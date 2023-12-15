@@ -1,0 +1,587 @@
+---
+title: "LinearRegression_MachineLearningClass"
+author: "Hilary Brumberg"
+date: "2023-12-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(lattice)
+library(ggplot2) 
+library(MASS)
+```
+
+
+
+```{r}
+#import dataframe
+BahiaSubsample_full <- read.csv("BahiaSubsample_full.csv")
+
+#clean data 
+#only retain continuous numeric variables of interest
+df <- BahiaSubsample_full[,-c(1, 2, 3, 4, 5,7, 8,9,11,12,13,14,15,16,17,19,20, 22)]
+```
+
+
+
+```{r}
+#Percent restoration in each municipality is dependent variable for all models
+y <- df$PercRest
+
+#Percent restoration needs transformation
+
+#log transform
+y_log <- log(y)
+
+#Box-Cox to determine which power to use in transformation
+if (any(y <= 0)) {
+  y <- y + abs(min(y)) + 1
+}
+
+bc_result <- boxcox(lm(y ~ 1), 
+                    lambda = seq(-2, 2, by = 0.1))
+
+lambda_optimal <- bc_result$x[which.max(bc_result$y)]
+
+y_transformed <- (y^lambda_optimal - 1) / lambda_optimal
+
+
+
+par(mfrow = c(2, 2))
+hist(y, main = "Histogram of percent restored", ylab = "Frequency", xlab = "Percent restored")
+hist(y_log, main = "Histogram of percent restored: Log", ylab = "Frequency", xlab = "Percent restored")
+hist(y_transformed, main = "Histogram  of percent restored: Box-Cox transformation", ylab = "Frequency", xlab = "Percent restored")
+par(mfrow = c(1, 1))
+
+par(mfrow = c(2, 2))
+boxplot(y, main = "Boxplot of percent restored", ylab = "Percent restored", xlab = "y")
+boxplot(y_log, main = "Boxplot of percent restored: Log", ylab = "Percent restored", xlab = "y")
+boxplot(y_transformed, main = "Boxplot of percent restored: Box-Cox transformation", ylab = "Percent restored", xlab = "y")
+par(mfrow = c(1, 1))
+
+#both y_log and y_transformed are better than y and they look similar
+
+```
+
+
+```{r}
+
+#Trialing a few different independent variables
+
+
+#GDP per capita and percent restoration (class) were highly associated in ARM. GDP per capita also second most influential feature in decision tree
+x1 <- df$GDPperCap
+
+#forest percent 2011 had the highest feature importance for the best performing SVM (linear SVM, C=1)
+x2 <- df$Forest_perc_2011
+
+#farmland percent in 2011 was the most important feature in the decision tree
+x3 <- df$Farming_perc_2011
+
+
+#Histograms
+par(mfrow = c(2, 2))
+hist(y, main = "Histogram of percent restored", ylab = "Frequency", xlab = "Percent restored")
+hist(x1, main = "Histogram  of GDP per capita", ylab = "Frequency", xlab = "GDP per capita")
+hist(x2, main = "Histogram  of forest percent in 2011", ylab = "Frequency", xlab = "Forest percent in 2011")
+hist(x3, main = "Histogram  of farming percent in 2011", ylab = "Frequency", xlab = "Farming percent in 2011")
+par(mfrow = c(1, 1))
+
+#Boxplots
+par(mfrow = c(2, 2))
+boxplot(y, main = "Boxplot of percent restored", ylab = "Percent restored", xlab = "y")
+boxplot(x1, main = "Boxplot of GDP per capita", ylab = "GDP per capita", xlab = "x1")
+boxplot(x2, main = "Boxplot of forest percent in 2011", ylab = "Forest percent in 2011", xlab = "x2")
+boxplot(x3, main = "Boxplot of farming percent in 2011", ylab = "Farming percent in 2011", xlab = "x3")
+par(mfrow = c(1, 1))
+
+
+```
+
+
+
+```{r}
+
+#GDP per capita needs transformation
+
+x1 <- df$GDPperCap
+
+#log transform
+x1_log <- log(x1)
+
+#Box-Cox to determine which power to use in transformation
+if (any(x1 <= 0)) {
+  x1 <- x1 + abs(min(y)) + 1
+}
+
+bc_result_x1 <- boxcox(lm(x1 ~ 1), 
+                    lambda = seq(-2, 2, by = 0.1))
+
+lambda_optimal_x1 <- bc_result_x1$x[which.max(bc_result_x1$y)]
+
+x1_transformed <- (x1^lambda_optimal_x1 - 1) / lambda_optimal_x1
+
+
+par(mfrow = c(2, 2))
+hist(x1, main = "Histogram of GDP per capita", ylab = "Frequency", xlab = "Percent restored")
+hist(x1_log, main = "Histogram of GDP per capita: Log", ylab = "Frequency", xlab = "Percent restored")
+hist(x1_transformed, main = "Histogram of GDP per capita: Box-Cox transformation", ylab = "Frequency", xlab = "Percent restored")
+par(mfrow = c(1, 1))
+
+par(mfrow = c(2, 2))
+boxplot(x1, main = "Boxplot of percent restored", ylab = "Percent restored", xlab = "y")
+boxplot(x1_log, main = "Boxplot of percent restored: Log", ylab = "Percent restored", xlab = "y")
+boxplot(x1_transformed, main = "Boxplot of percent restored: Box-Cox transformation", ylab = "Percent restored", xlab = "y")
+par(mfrow = c(1, 1))
+
+#x1_transformed is the best
+```
+
+```{r}
+# Linear regression: y log
+
+#model 1: GDP per capita & restoration
+
+model1 <- lm(y_log ~ x1_transformed)
+summary(model1)
+#plot(model1)
+
+plot(x1_transformed, y_log, main = "Percent restored (log) vs. GDP per capita", ylab = "Percent restored", xlab = "GDP per capita")
+abline(model1, col = "red")
+
+# Checking OLS assumptions
+
+# Plotting residuals vs fitted values to check homoscedasticity and linearity 
+plot(fitted(model1), residuals(model1), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Percent restored (log) vs. GDP per capita")
+abline(h = 0, col = "red") 
+
+# QQ plot to check normality of residuals
+qqnorm(residuals(model1))
+qqline(residuals(model1), col = "red")
+
+
+
+
+
+#model 2: forest percent in 2011 & restoration
+
+model2 <- lm(y_log ~ x2)
+summary(model2)
+#plot(model2)
+
+plot(x2, y_log, main = "Percent restored (log) vs. forest percent in 2011", ylab = "Percent restored", xlab = "Forest percent in 2011")
+abline(model2, col = "red")
+
+# Checking OLS assumptions
+
+# Plotting residuals vs fitted values to check homoscedasticity and linearity 
+plot(fitted(model2), residuals(model2), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Percent restored (log) vs. forest percent in 2011")
+abline(h = 0, col = "red") 
+
+# QQ plot to check normality of residuals
+qqnorm(residuals(model2))
+qqline(residuals(model2), col = "red")
+
+
+
+
+#model 3: farming percent in 2011 & restoration
+
+model3 <- lm(y_log ~ x3)
+summary(model3)
+#plot(model3)
+
+
+plot(x3, y_log, main = "Percent restored (log) vs. farming percent in 2011", ylab = "Percent restored", xlab = "Farming percent in 2011")
+abline(model3, col = "red")
+
+# Checking OLS assumptions
+
+# Plotting residuals vs fitted values to check homoscedasticity and linearity 
+plot(fitted(model3), residuals(model3), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Percent restored (log) vs. farming percent in 2011")
+abline(h = 0, col = "red") 
+
+# QQ plot to check normality of residuals
+qqnorm(residuals(model3))
+qqline(residuals(model3), col = "red")
+
+
+
+#model 4: All three predictors
+
+model4 <- lm(y_log ~ x1_transformed + x2 + x3)
+summary(model4)
+#plot(model4)
+
+
+# Plotting residuals vs fitted values to check homoscedasticity and linearity 
+plot(fitted(model4), residuals(model4), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: All three predictors and percent restored (log)")
+abline(h = 0, col = "red") 
+
+# QQ plot to check normality of residuals
+qqnorm(residuals(model4))
+qqline(residuals(model4), col = "red")
+
+
+
+```
+
+
+
+```{r}
+# Linear regression: y transformed
+
+#model 5: GDP per capita & restoration
+
+model5 <- lm(y_transformed ~ x1_transformed)
+summary(model5)
+#plot(model5)
+
+plot(x1_transformed, y_transformed, main = "Percent restored (Box-Cox) vs. GDP per capita ", ylab = "Percent restored (Box-Cox)", xlab = "GDP per capita (Box-Cox)")
+abline(model1, col = "red")
+
+# Checking OLS assumptions
+
+# Plotting residuals vs fitted values to check homoscedasticity and linearity 
+plot(fitted(model5), residuals(model5), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Percent restored (Box-Cox) vs. GDP per capita")
+abline(h = 0, col = "red") 
+
+# QQ plot to check normality of residuals
+qqnorm(residuals(model5))
+qqline(residuals(model5), col = "red")
+
+
+
+
+
+#model 6: forest percent in 2011 & restoration
+
+model6 <- lm(y_transformed ~ x2)
+summary(model6)
+#plot(model6)
+
+plot(x2, y_transformed, main = "Percent restored (Box-Cox) vs. forest percent in 2011", ylab = "Percent restored (Box-Cox)", xlab = "Forest percent in 2011")
+abline(model6, col = "red")
+
+# Checking OLS assumptions
+
+# Plotting residuals vs fitted values to check homoscedasticity and linearity 
+plot(fitted(model6), residuals(model6), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Percent restored (Box-Cox) vs. forest percent in 2011")
+abline(h = 0, col = "red") 
+
+# QQ plot to check normality of residuals
+qqnorm(residuals(model6))
+qqline(residuals(model6), col = "red")
+
+
+
+
+#model 7: farming percent in 2011 & restoration
+
+model7 <- lm(y_transformed ~ x3)
+summary(model7)
+#plot(model7)
+
+
+plot(x3, y_transformed, main = "Percent restored (Box-Cox) vs. farming percent in 2011", ylab = "Percent restored (Box-Cox)", xlab = "Farming percent in 2011")
+abline(model7, col = "red")
+
+# Checking OLS assumptions
+
+# Plotting residuals vs fitted values to check homoscedasticity and linearity 
+plot(fitted(model7), residuals(model7), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Percent restored (Box-Cox) vs. farming percent in 2011")
+abline(h = 0, col = "red") 
+
+# QQ plot to check normality of residuals
+qqnorm(residuals(model7))
+qqline(residuals(model7), col = "red")
+
+
+
+#model 8: All three predictors
+
+model8 <- lm(y_transformed ~ x1_transformed + x2 + x3)
+summary(model8)
+#plot(model4)
+
+
+# Plotting residuals vs fitted values to check homoscedasticity and linearity 
+plot(fitted(model8), residuals(model8), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: All three predictors & percent restored (Box-Cox) ")
+abline(h = 0, col = "red") 
+
+# QQ plot to check normality of residuals
+qqnorm(residuals(model8))
+qqline(residuals(model8), col = "red")
+
+```
+
+```{r}
+
+#OLS assumptions figure
+
+par(mfrow = c(4, 4))
+
+plot(fitted(model1), residuals(model1), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Model 1")
+abline(h = 0, col = "red") 
+
+qqnorm(residuals(model1), main = "QQ plot: Model 1")
+qqline(residuals(model1), col = "red")
+
+
+
+plot(fitted(model2), residuals(model2), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Model 2")
+abline(h = 0, col = "red") 
+
+qqnorm(residuals(model2), main = "QQ plot: Model 2")
+qqline(residuals(model2), col = "red")
+
+
+
+
+
+plot(fitted(model3), residuals(model3), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Model 3")
+abline(h = 0, col = "red") 
+
+qqnorm(residuals(model3), main = "QQ plot: Model 3")
+qqline(residuals(model3), col = "red")
+
+
+
+
+plot(fitted(model4), residuals(model4), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Model 4")
+abline(h = 0, col = "red") 
+
+qqnorm(residuals(model4), main = "QQ plot: Model 4")
+qqline(residuals(model4), col = "red")
+
+
+
+
+
+
+plot(fitted(model5), residuals(model5), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Model 5")
+abline(h = 0, col = "red") 
+
+qqnorm(residuals(model5), main = "QQ plot: Model 5")
+qqline(residuals(model5), col = "red")
+
+
+
+
+plot(fitted(model6), residuals(model6), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Model 6")
+abline(h = 0, col = "red") 
+
+qqnorm(residuals(model6), main = "QQ plot: Model 6")
+qqline(residuals(model6), col = "red")
+
+
+
+
+
+plot(fitted(model7), residuals(model7), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Model 7")
+abline(h = 0, col = "red") 
+
+qqnorm(residuals(model7), main = "QQ plot: Model 7")
+qqline(residuals(model7), col = "red")
+
+
+
+
+
+plot(fitted(model8), residuals(model8), 
+     xlab = "Fitted values", 
+     ylab = "Residuals", 
+     main = "Residuals vs Fitted: Model 8")
+abline(h = 0, col = "red") 
+
+qqnorm(residuals(model8), main = "QQ plot: Model 8")
+qqline(residuals(model8), col = "red")
+
+
+
+
+
+
+par(mfrow = c(1, 1))
+
+
+```
+
+```{r}
+
+#Results figure
+
+par(mfrow = c(2, 3))
+
+plot(x1_transformed, y_log, main = "Percent restored (log) vs. GDP per capita", ylab = "Percent restored (log)", xlab = "GDP per capita (Box-Cox)")
+abline(model1, col = "red")
+
+plot(x2, y_log, main = "Percent restored (log) vs. forest percent in 2011", ylab = "Percent restored (log)", xlab = "Forest percent in 2011")
+abline(model2, col = "red")
+
+plot(x3, y_log, main = "Percent restored (log) vs. farming percent in 2011", ylab = "Percent restored (log)", xlab = "Farming percent in 2011")
+abline(model3, col = "red")
+
+plot(x1_transformed, y_transformed, main = "Percent restored (Box-Cox) vs. GDP per capita ", ylab = "Percent restored (Box-Cox)", xlab = "GDP per capita (Box-Cox)")
+abline(model1, col = "red")
+
+plot(x2, y_transformed, main = "Percent restored (Box-Cox) vs. forest percent in 2011", ylab = "Percent restored (Box-Cox)", xlab = "Forest percent in 2011")
+abline(model6, col = "red")
+
+plot(x3, y_transformed, main = "Percent restored (Box-Cox) vs. farming percent in 2011", ylab = "Percent restored (Box-Cox)", xlab = "Farming percent in 2011")
+abline(model7, col = "red")
+
+par(mfrow = c(1, 1))
+
+```
+
+```{r}
+
+# Linear Regression using Gradient Descent with One Predictor 
+
+
+# Initialize parameters
+w1 <- 0
+b <- 0
+learning_rate <- 0.01
+epochs <- 1000
+n <- length(y_transformed)
+
+# Gradient Descent
+for (i in 1:epochs) {
+  y_hat <- w1 * x2 + b
+  loss <- sum((y_hat - y_transformed) ^ 2) / (2 * n)
+  
+  dw1 <- sum((y_hat - y_transformed) * x2) / n
+  db <- sum(y_hat - y_transformed) / n
+
+  w1 <- w1 - learning_rate * dw1
+  b <- b - learning_rate * db
+
+  if (i %% 100 == 0) {
+    print(paste("Epoch:", i, "Loss:", loss))
+  }
+}
+
+print(paste("w1:", w1, "b:", b))
+
+```
+```{r}
+# Linear Regression using Gradient Descent with Two Predictors
+
+# Initialize parameters
+w1 <- 0
+w2 <- 0
+b <- 0
+learning_rate <- 0.01
+epochs <- 1000
+n <- length(y_transformed)
+
+# Gradient Descent
+for (i in 1:epochs) {
+  y_hat <- w1 * x2 + w2 * x3 + b
+  loss <- sum((y_hat - y_transformed) ^ 2) / (2 * n)
+  
+  dw1 <- sum((y_hat - y) * x2) / n
+  dw2 <- sum((y_hat - y) * x3) / n
+  db <- sum(y_hat - y_transformed) / n
+
+  w1 <- w1 - learning_rate * dw1
+  w2 <- w2 - learning_rate * dw2
+  b <- b - learning_rate * db
+
+  if (i %% 100 == 0) {
+    print(paste("Epoch:", i, "Loss:", loss))
+  }
+}
+
+print(paste("w1:", w1, "w2:", w2, "b:", b))
+
+```
+
+```{r}
+#Mean Squared Error (MSE)
+
+predicted_values1 <- predict(model1)
+predicted_values2 <- predict(model2)
+predicted_values3 <- predict(model3)
+predicted_values4 <- predict(model4)
+predicted_values5 <- predict(model5)
+predicted_values6 <- predict(model6)
+predicted_values7 <- predict(model7)
+predicted_values8 <- predict(model8)
+
+calculate_mse <- function(actual, predicted) {
+  mean((predicted - actual) ^ 2)
+}
+
+mse1 <- calculate_mse(y_log, predicted_values1)
+mse2 <- calculate_mse(y_log, predicted_values2)
+mse3 <- calculate_mse(y_log, predicted_values3)
+mse4 <- calculate_mse(y_log, predicted_values4)
+mse5 <- calculate_mse(y_transformed, predicted_values5)
+mse6 <- calculate_mse(y_transformed, predicted_values6)
+mse7 <- calculate_mse(y_transformed, predicted_values7)
+mse8 <- calculate_mse(y_transformed, predicted_values8)
+
+print(paste("MSE for model1:", mse1))
+print(paste("MSE for model2:", mse2))
+print(paste("MSE for model3:", mse3))
+print(paste("MSE for model4:", mse4))
+print(paste("MSE for model5:", mse5))
+print(paste("MSE for model6:", mse6))
+print(paste("MSE for model7:", mse7))
+print(paste("MSE for model8:", mse8))
+
+#lowest mse = best performing model among those evaluated in terms of prediction accuracy
+#model 4 has lowest mse (model with 3 predictors)
+#model 2 has second lowest mse, with forest percent in 2011 as the predictor
+```
